@@ -1,0 +1,68 @@
+#!/bin/bash
+#author:dba
+
+xtrabackup="/usr/bin/xtrabackup"
+
+#连接信息
+user=root
+passwd="mysql123"
+port=6626
+socket=/data/mysql_6626/mysql.sock
+db_conn=" --user=$user --password=$passwd --port=$port --socket=$socket "
+
+#备份目录
+backup_dir=/pro_db_backup/pro_09/backup/6626              # 备份的主目录
+full_backup_dir=$backup_dir/full/`date +%Y%m%d_%H%M%S`       # 全量备份目录
+incr_backup_dir=$backup_dir/incr/`date +%Y%m%d_%H%M%S`       # 增量备份目录
+logfile_full=$backup_dir/logs/backup_full.`date +%Y%m%d%H%M%S`.txt          # 全量备份日志
+logfile_incr=$backup_dir/logs/backup_incr.`date +%Y%m%d%H%M%S`.txt          # 增量备份日志
+backup_txt=$backup_dir/backup.txt      #记录备份开始时间和结束时间
+
+
+#############################################################################
+# 显示错误并退出
+#############################################################################
+error()
+{
+    echo "$1" 1>&2
+    exit 1
+}
+# 检查执行环境
+if [ ! -x $xtrabackup ]; then
+  error "$xtrabackup未安装或未链接到/usr/bin."
+fi
+
+if [ ! -d $backup_dir/full ]; then
+  error "备份目标文件夹:$backup_dir/full 不存在."
+fi
+
+if [ ! -d $backup_dir/incr ]; then
+  error "备份目标文件夹:$backup_dir/incr 不存在."
+fi
+
+if [ ! -d $backup_dir/logs ]; then
+  error "备份日志文件夹:$backup_dir/logs 不存在."
+fi
+
+
+
+
+echo "备份开始时间:"`date +%Y-%m-%d_%H:%M:%S`>>$backup_txt
+#全量备份
+$xtrabackup $db_conn --use-memory=4G  --parallel=4 --no-lock --backup --target-dir=$full_backup_dir >$logfile_full 2>&1
+echo "备份结束时间:"`date +%Y-%m-%d_%H:%M:%S`>>$backup_txt
+
+
+
+
+
+
+
+#删除过期的全量备份
+cd $backup_dir/full
+/usr/bin/find $backup_dir/full -mindepth 1  -maxdepth 1 -type d -mtime +1 -exec rm -rf {} \;
+
+
+#删除过期的增量备份
+cd $backup_dir/incr
+/usr/bin/find $backup_dir/incr -mindepth 1  -maxdepth 1 -type d -mtime +1 | xargs rm -rf
